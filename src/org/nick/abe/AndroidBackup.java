@@ -27,10 +27,17 @@ import javax.crypto.CipherOutputStream;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpression;
+import javax.xml.xpath.XPathFactory;
 
 import org.bouncycastle.crypto.PBEParametersGenerator;
 import org.bouncycastle.crypto.generators.PKCS5S2ParametersGenerator;
 import org.bouncycastle.crypto.params.KeyParameter;
+import org.w3c.dom.Document;
 
 // mostly lifted off com.android.server.BackupManagerService.java
 public class AndroidBackup {
@@ -69,6 +76,14 @@ public class AndroidBackup {
             }
 
             String magic = readHeaderLine(rawInStream); // 1
+            if("MIUI BACKUP".equals(magic)){
+                System.err.println("MIUI BACKUP");
+                readHeaderLine(rawInStream);  // ver
+                readHeaderLine(rawInStream);  // pkgname
+                readHeaderLine(rawInStream);  // -1
+                readHeaderLine(rawInStream);  // 0
+                magic = readHeaderLine(rawInStream);
+            }
             if (DEBUG) {
                 System.err.println("Magic: " + magic);
             }
@@ -241,12 +256,34 @@ public class AndroidBackup {
     }
 
     public static void packTar(String tarFilename, String backupFilename,
-            String password, boolean isKitKat) {
+            String password, boolean isKitKat, boolean isMiBackup) {
         boolean encrypting = password != null && !"".equals(password);
         boolean compressing = true;
 
         StringBuilder headerbuf = new StringBuilder(1024);
-
+        if (isMiBackup){
+            compressing = false;
+            //try to get pkg name
+            String packageName = "";
+            File descript_xml_path =  new File(new File(backupFilename).getParentFile(),"descript.xml");
+            if(descript_xml_path.exists()){
+                try{
+                    DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                    DocumentBuilder builder = factory.newDocumentBuilder();
+                    Document doc = builder.parse(descript_xml_path);
+                    XPathFactory xpathFactory = XPathFactory.newInstance();
+                    XPath xpath = xpathFactory.newXPath();
+                    XPathExpression expr = xpath.compile("/MIUI-backup/packages/package/packageName/text()");
+                    packageName = (String) expr.evaluate(doc, XPathConstants.STRING) + " appName";
+                } catch (Exception e) {
+                    System.err.println("读取该xml文件失败");
+                    e.printStackTrace();
+                }
+            }
+            headerbuf.append("MIUI BACKUP\n2\n");
+            headerbuf.append(packageName);
+            headerbuf.append("\n-1\n0\n");
+        }
         headerbuf.append(BACKUP_FILE_HEADER_MAGIC);
         // integer, no trailing \n
         headerbuf.append(isKitKat ? BACKUP_FILE_V2 : BACKUP_FILE_V1);

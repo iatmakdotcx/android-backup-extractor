@@ -17,7 +17,7 @@ public class Main {
         }
 
         String mode = args[0];
-        if (!"pack".equals(mode) && !"unpack".equals(mode) && !"pack-kk".equals(mode)) {
+        if (!"pack".equals(mode) && !"unpack".equals(mode) && !"pack-kk".equals(mode) && !"pack-mi".equals(mode)) {
             usage();
 
             System.exit(1);
@@ -39,8 +39,9 @@ public class Main {
         if (unpack) {
             AndroidBackup.extractAsTar(backupFilename, tarFilename, password);
         } else {
+            boolean isMiBackup = "pack-mi".equals(mode);
             boolean isKitKat = "pack-kk".equals(mode);
-            AndroidBackup.packTar(tarFilename, backupFilename, password, isKitKat);
+            AndroidBackup.packTar(tarFilename, backupFilename, password, isKitKat, isMiBackup);
         }
 
     }
